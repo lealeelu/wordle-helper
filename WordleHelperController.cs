@@ -6,44 +6,53 @@ public partial class WordleHelperController
 {
     readonly Dictionary<(char, int), int> letterBuckets = new();
 
-    public void Solve()
+    public static void Solve()
     {
-        var wordTemplate = "-----";
         var wordList = GetWordList();
-        var grayLetters = new List<char>();
-        var orangeLetters = new List<char>();
-
-        while (wordTemplate.Contains('-') && wordList.Count > 1)
+        var clues = new List<Clue>();
+        while (wordList.Count > 1)
         {
             Console.WriteLine("Enter word Template: ");
-            wordTemplate = Console.ReadLine();
-            if (wordTemplate == "done") return;
-            Console.WriteLine("Enter gray letters");
-            grayLetters.AddRange(Console.ReadLine().ToCharArray());
-            Console.WriteLine("Enter Orange letters");
-            orangeLetters.AddRange(Console.ReadLine().ToCharArray());
-            wordList = wordList.Where(word => TemplateMatchWord(word, wordTemplate)
-                                              && orangeLetters.All(word.Contains)
-                                              && grayLetters.All(grayLetter => !word.Contains(grayLetter))).ToList();
-            wordList.ToList().ForEach(Console.WriteLine);
+            var wordTemplate = Console.ReadLine();
+            if (wordTemplate == "") return;
+            clues.AddRange(ParseWordTemplate(wordTemplate));
+            wordList = wordList.Where(word => TemplateMatchWord(word, clues)).ToList(); 
+            wordList.Where(word => TemplateMatchWord(word, clues)).ToList().ForEach(Console.WriteLine);
+            Console.WriteLine($"'Count: {wordList.Count}");
         }
     }
 
-    private static bool TemplateMatchWord(string testWord, string templateWord)
+    private static IEnumerable<Clue> ParseWordTemplate(string wordTemplate)
     {
-        for (var i = 0; i < 5; i++)
+        return wordTemplate.Split(',').Select((clue, index) => clue.Length > 1
+            ? new Clue{ type = GetClueType(clue[0]), letter = clue[1], index = index }
+            : new Clue{ type = ClueType.Positive, letter = clue[0], index = index });
+    }
+
+    private static ClueType GetClueType(char clue)
+    {
+        return clue switch
         {
-            if (!TemplateMatchChar(testWord[i], templateWord[i])) return false;
-        }
-
-        return true;
-    }
-
-    private static bool TemplateMatchChar(char a, char b)
-    {
-        return a == b || b == '-';
+            '!' => ClueType.NotIncluded,
+            '~' => ClueType.IncludedWrongSpot,
+            _ => ClueType.Unknown
+        };
     }
     
+    private static bool TemplateMatchWord(string testWord, IEnumerable<Clue> clues)
+    {
+        return clues.All(clue =>
+        {
+            var testLetter = testWord[clue.index];
+            return clue.type switch
+            {
+                ClueType.NotIncluded => !testWord.Contains(clue.letter),
+                ClueType.IncludedWrongSpot => testLetter != clue.letter && testWord.Contains(clue.letter),
+                ClueType.Positive => testLetter == clue.letter,
+            };
+        });
+    }
+
     public void letterFrequency()
     {
         FillLetterBucket();
@@ -64,7 +73,9 @@ public partial class WordleHelperController
             }
 
             sr.Close();
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             Console.WriteLine("The file could not be read:");
             Console.WriteLine(e.Message);
         }
@@ -90,6 +101,7 @@ public partial class WordleHelperController
             PrintIndexResult(letterBuckets, i);
             Console.WriteLine();
         }
+
         Console.WriteLine();
         letterBuckets.GroupBy(pair => pair.Key.Item1)
             .Select(result => new { letter = result.First().Key.Item1, count = result.Sum(c => c.Value) })
@@ -116,15 +128,18 @@ public partial class WordleHelperController
             {
                 wordList.Add(line);
             }
+
             sr.Close();
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             Console.WriteLine("The file could not be read:");
             Console.WriteLine(e.Message);
         }
 
         return wordList;
     }
-    
+
     public static void FilterDictionary()
     {
         var _regex = MyRegex();
@@ -133,15 +148,19 @@ public partial class WordleHelperController
         {
             using var sr = new StreamReader("C:/Users/lmlee/RiderProjects/WordleHelper/resources/words.txt");
             using var sw = new StreamWriter("C:/Users/lmlee/RiderProjects/WordleHelper/resources/wordleDictionary.txt");
-            while (sr.ReadLine() is { } line) {
+            while (sr.ReadLine() is { } line)
+            {
                 if (_regex.IsMatch(line))
                 {
                     sw.WriteLine(line);
                 }
             }
+
             sr.Close();
             sw.Close();
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             Console.WriteLine("The file could not be read:");
             Console.WriteLine(e.Message);
         }
@@ -149,4 +168,19 @@ public partial class WordleHelperController
 
     [GeneratedRegex("^[a-z]{4}[^s]$")]
     private static partial Regex MyRegex();
+    
+    private class Clue
+    {
+        public ClueType type;
+        public char letter;
+        public int index;
+    }
+    
+    private enum ClueType
+    {
+        NotIncluded, //gray
+        IncludedWrongSpot, //orange
+        Positive, //green
+        Unknown,
+    }
 }

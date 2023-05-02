@@ -15,7 +15,7 @@ partial class Program
                 _wordleHelperController.letterFrequency();
                 break;
             case "-s":
-                _wordleHelperController.Solve();
+                WordleHelperController.Solve();
                 break;
             default:
                 Console.WriteLine("Missing arg p, lf, s");
